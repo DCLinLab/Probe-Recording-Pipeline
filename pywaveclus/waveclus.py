@@ -1,18 +1,16 @@
 import scipy.io as sio
-import numpy as np
 # WaveClus imports
-from WaveClus.pywaveclus.spike_detection import detect_spikes
-from WaveClus.pywaveclus.artifacts_removal import artifacts_removal_for_bundle
-from WaveClus.pywaveclus.feature_extraction import feature_extraction
-from WaveClus.pywaveclus.waveform_extraction import extract_waveforms
-from WaveClus.pywaveclus.clustering import SPC_clustering
+from .spike_detection import detect_spikes
+from .artifacts_removal import artifacts_removal_for_bundle
+from .feature_extraction import feature_extraction
+from .waveform_extraction import extract_waveforms
+from .clustering import SPC_clustering
 import os
 import yaml
 
 
-
-
-def spike_sorting_pipeline(recording, recording_bp2, recording_bp4, bundle_dict,artifact_removal=False, save_dir=None):
+def spike_sorting_pipeline(recording, recording_bp2, recording_bp4, bundle_dict, config_file,
+                           artifact_removal=False, save_dir=None):
     """
     Perform the spike sorting pipeline.
 
@@ -29,11 +27,11 @@ def spike_sorting_pipeline(recording, recording_bp2, recording_bp4, bundle_dict,
     """
     # Step 1: Spike Detection
     print('start spike detection...')
-    spike_detection_results = detect_spikes(recording, recording_bp2, recording_bp4)
+    spike_detection_results = detect_spikes(recording, recording_bp2, recording_bp4, config_file)
     print('end spike detection!')
     # Step 3: Extract Waveforms
     print('start extract waveforms...')
-    waveforms = extract_waveforms(spike_detection_results, recording_bp2)
+    waveforms = extract_waveforms(spike_detection_results, recording_bp2, config_file)
     print('end extract waveforms!')
     if artifact_removal:
         # Step 2: Artifact Removal
@@ -42,10 +40,10 @@ def spike_sorting_pipeline(recording, recording_bp2, recording_bp4, bundle_dict,
         print('end artifact removal!')
         # Create a dictionary to store the filtered waveforms
         filtered_waveforms = extract_waveforms(filtered_results, recording_bp2)
-        features = feature_extraction(filtered_waveforms)
+        features = feature_extraction(filtered_waveforms, config_file)
         print('start clustering...')
         # Step 5: Clustering
-        labels, metadata = SPC_clustering(features)
+        labels, metadata = SPC_clustering(features, config_file)
         print('end clustering!')
         # Save data for each channel in a separate MATLAB file
         for channel_id in labels.keys():
@@ -55,13 +53,13 @@ def spike_sorting_pipeline(recording, recording_bp2, recording_bp4, bundle_dict,
     else:
         # Step 4: Feature Extraction
         print('start feature extraction')
-        features = feature_extraction(waveforms)
+        features = feature_extraction(waveforms, config_file)
         print('end feature extraction')
         
         print('start clustering')
         # Step 5: Clustering
 
-        labels, metadata = SPC_clustering(features)
+        labels, metadata = SPC_clustering(features, config_file)
         
         print('end clustering')
         # Save data for each channel in a separate MATLAB file

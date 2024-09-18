@@ -4,11 +4,10 @@ import pywt
 from sklearn.decomposition import PCA
 from statsmodels.stats.diagnostic import lilliefors
 import yaml
-import os 
 
-def load_feature_extraction_config():
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
-    with open(file_path, 'r') as config_file:
+
+def load_feature_extraction_config(config_file):
+    with open(config_file, 'r') as config_file:
         config = yaml.safe_load(config_file)
         return config['feature_extraction']
     
@@ -85,6 +84,7 @@ def pca_feature_extraction(spikes, n_components):
         features[channel] = pca_feature_extraction_for_channel(spike_waveforms, n_components)
     return features
 
+
 def pca_feature_extraction_for_channel(spikes, n_components=10):
     nspk = spikes.shape[0]
     pca = PCA(n_components=n_components)
@@ -101,8 +101,9 @@ def pca_feature_extraction_for_channel(spikes, n_components=10):
 
     return inspk_pca
 
-def feature_extraction(waveforms):
-    config = load_feature_extraction_config()
+
+def feature_extraction(waveforms, config_file):
+    config = load_feature_extraction_config(config_file)
     method = config['method']
 
     if method == 'haar':

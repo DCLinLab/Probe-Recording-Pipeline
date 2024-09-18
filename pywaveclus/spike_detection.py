@@ -1,20 +1,18 @@
 # spike_detection.py
 import math
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from spikeinterface import ChannelSliceRecording
-from scipy.interpolate import splev, splrep
+from tqdm import tqdm
 import yaml
-import os
 
-def load_spike_detection_config():
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
-    with open(file_path, 'r') as config_file:
+def load_spike_detection_config(config_file):
+    with open(config_file, 'r') as config_file:
         config = yaml.safe_load(config_file)
         return config['spike_detection']
 
 
-def detect_spikes(recording, recording_bp2, recording_bp4):
+def detect_spikes(recording, recording_bp2, recording_bp4, config_file, max_workers=None):
     """Detects spikes from a given recording and all channels.
 
     Args:
@@ -31,7 +29,7 @@ def detect_spikes(recording, recording_bp2, recording_bp4):
         results: A dictionary where the keys are the channel ids, and the values are
                   another dictionary with the keys 'spikes', 'thresholds' and 'indexes'.
     """
-    config = load_spike_detection_config()
+    config = load_spike_detection_config(config_file)
     detect = config['detect_method']
     segment_duration = config['segment_duration'] * 60
     stdmin = config['std_min']
@@ -91,10 +89,12 @@ def detect_spikes(recording, recording_bp2, recording_bp4):
             indexes.extend(index)
             thresholds.append(thr)
 
-        return {'spikes': np.array(all_spikes), 'thresholds': np.array(thresholds), 'indexes': np.array(indexes)}
+        return {'spikes': np.array(all_spikes), 'thresholds': np.array(thresholds), 'indices': np.array(indexes)}
 
     # Use ThreadPoolExecutor for parallel processing
-    with ThreadPoolExecutor() as executor:
+    if max_workers <= 0:
+        max_workers = None
+    with ProcessPoolExecutor(max_workers) as executor:
         # Submit tasks for each channel to the ThreadPoolExecutor
         futures = [executor.submit(process_channel, channel_id) for channel_id in channel_ids]
 

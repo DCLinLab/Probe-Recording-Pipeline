@@ -1,9 +1,9 @@
 import yaml
 import numpy as np
 from scipy.interpolate import splrep, splev
-import os 
 
-def load_waveform_extraction_config(config_file='config.yaml'):
+
+def load_waveform_extraction_config(config_file):
     """Load waveform extraction configuration from a YAML file.
 
     Args:
@@ -12,20 +12,19 @@ def load_waveform_extraction_config(config_file='config.yaml'):
     Returns:
         dict: A dictionary containing the waveform extraction configuration parameters.
     """
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
-    with open(file_path, 'r') as config_file:
+    with open(config_file, 'r') as config_file:
         config = yaml.safe_load(config_file)
         return config['extract_waveform']
 
 
-def extract_waveforms(results, recording_bp2, config_file='config.yaml'):
+def extract_waveforms(results, recording_bp2, config_file):
     """Extracts waveforms for detected spikes in all channels.
 
     Args:
         results (dict): A dictionary containing the spike detection results for each channel.
                         It can also be a single-channel result in the form of a dictionary.
         recording_bp2: The recording object for the channels' bandpass 2 data.
-        config_file (str): Path to the YAML configuration file. Default is 'config.yaml'.
+        config_file: Path to the YAML configuration file. Default is 'config.yaml'.
 
     Returns:
         dict: A dictionary where keys are the channel ids, and values are the extracted waveforms for detected spikes in each channel.
@@ -46,13 +45,12 @@ def extract_waveforms(results, recording_bp2, config_file='config.yaml'):
 
 def extract_waveforms_for_channel(result, recording_bp2, channel_id, detect, w_pre, w_post, int_factor):
     spikes_times = result['spikes']
-    indexes = result['indexes']
+    indexes = result['indices']
 
     xf = recording_bp2.get_traces(channel_ids=[channel_id], start_frame=0, end_frame=recording_bp2.get_num_frames())
 
     ls = w_pre + w_post
     nspk = len(spikes_times)
-    spikes = np.zeros((nspk, ls + 4))
 
     indices = np.arange(-w_pre - 2, w_post + 2) + indexes[:, np.newaxis]
     spikes = np.take(xf, indices, axis=0).reshape(nspk, -1)
@@ -72,7 +70,7 @@ def extract_waveforms_for_channel(result, recording_bp2, channel_id, detect, w_p
             iaux = intspikes[:, int((w_pre+extra-1)*int_factor):int((w_pre+extra+1)*int_factor)].argmax(axis=1)
         elif detect == 'neg':
             iaux = intspikes[:, int((w_pre+extra-1)*int_factor):int((w_pre+extra+1)*int_factor)].argmin(axis=1)
-        elif detect == 'both':
+        else:
             iaux = np.abs(intspikes[:, int((w_pre+extra-1)*int_factor):int((w_pre+extra+1)*int_factor)]).argmax(axis=1)
 
         iaux = iaux + (w_pre+extra-1)*int_factor - 1

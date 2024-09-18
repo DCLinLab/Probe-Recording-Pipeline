@@ -2,16 +2,16 @@
 # spclustering: Super Paramagnetic Clustering Wrapper
 from spclustering import SPC, plot_temperature_plot
 import yaml
-import os
 
-def load_clustering_config():
-    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
-    with open(file_path, 'r') as config_file:
+
+def load_clustering_config(config_file):
+    with open(config_file, 'r') as config_file:
         config = yaml.safe_load(config_file)
         return config['clustering']
 
-def SPC_clustering(features):
-    config = load_clustering_config()
+
+def SPC_clustering(features, config_file):
+    config = load_clustering_config(config_file)
     min_clus = config['min_clus']
     plot_temperature = config['plot_temperature']
 
@@ -21,8 +21,7 @@ def SPC_clustering(features):
     metadata = {}
 
     for channel_id, feature in features.items():
-        label, metadata[channel_id] = clustering.fit(feature, min_clus, return_metadata=True)
-        labels[channel_id] = label
+        labels[channel_id], metadata[channel_id] = clustering.fit(feature, min_clus, return_metadata=True)
 
         if plot_temperature:
             plot_temperature_plot(metadata[channel_id])

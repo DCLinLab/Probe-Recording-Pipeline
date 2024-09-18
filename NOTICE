@@ -1,3 +1,2 @@
-file_io.rhd comes from github.com/kylerbrown/rhd, no license specified (2024/9/8)
-
-pywaveclus comes from the repo github.com/msdkhani/PyWaveClus, no license specified (2024/9/15)
+pywaveclus is modified based on the repo github.com/msdkhani/PyWaveClus, no license specified (2024/9/15),
+the algorithm is left untouched.

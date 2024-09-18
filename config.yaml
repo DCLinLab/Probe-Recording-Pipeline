@@ -1,6 +1,9 @@
+preprocessing:
+  impedance_thr: 5e6
+
 # config.yaml
 spike_detection:
-  detect_method: 'neg'
+  detect_method: 'both'
   segment_duration: 5 # in minutes
   std_min: 5
   std_max: 50
@@ -18,12 +21,12 @@ feature_extraction:
   pca_n_components: 10
 
 extract_waveform:
-  detect_method: 'neg'
+  detect_method: 'both'
   w_pre: 20
   w_post: 44
   int_factor: 5
 
 clustering:
-  plot_temperature: True
-  min_clus: 150
+  plot_temperature: False
+  min_clus: 60
 

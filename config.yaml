@@ -28,5 +28,11 @@ extract_waveform:
 
 clustering:
   plot_temperature: False
+  min_temp: 0.
+  max_temp: 0.251
+  temp_step: 0.01
+  sw_cycles: 100
+  knn: 11
   min_clus: 60
+  rand_seed: 0
 

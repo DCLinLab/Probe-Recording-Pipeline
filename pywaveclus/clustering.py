@@ -15,7 +15,8 @@ def SPC_clustering(features, config_file):
     min_clus = config['min_clus']
     plot_temperature = config['plot_temperature']
 
-    clustering = SPC(mintemp=0, maxtemp=0.251)
+    clustering = SPC(mintemp=config['min_temp'], maxtemp=config['max_temp'], tempstep=config['temp_step'],
+                     swcycles=config['sw_cycles'], nearest_neighbours=config['knn'], randomseed=config['rand_seed'])
 
     labels = {}
     metadata = {}

@@ -63,7 +63,7 @@ def detect_spikes(recording, recording_bp2, recording_bp4, config_file, max_work
             trace_bp2 = sub_recording_bp2.get_traces(start_frame=int(start_time * sr), end_frame=int(end_time * sr))
 
             thr = stdmin * np.median(np.abs(trace_bp4)) / 0.6745
-            thrmax = stdmax * thr 
+            thrmax = stdmax * np.median(np.abs(trace_bp2)) / 0.6745
             if detect == 'neg':
                 xaux = np.where((trace_bp4[w_pre + 2: -w_post - 2 - int(sample_ref)] < -thr))[0] + w_pre + 1
             elif detect == 'pos':

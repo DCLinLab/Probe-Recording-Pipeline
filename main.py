@@ -9,8 +9,8 @@ from pywaveclus.clustering import SPC_clustering
 from extra.io import rhd_load, save_results, load_intan_impedance, load_results
 from pathlib import Path
 import yaml
-import seaborn as sns
 import matplotlib.pyplot as plt
+from extra.plot import plot_quality_metrics, plot_waveform, plot_auto_correlagrams
 
 
 class SortingCommands:
@@ -23,6 +23,8 @@ class SortingCommands:
             1. for spike detection use elliptic filtering, for spike alignment use butterworth filtering
             2. use common reference for removal of unwanted interference
 
+            :param rhd_prefix:
+            :param impedance_file:
             :param recording: a raw recording
             :param out_path: output path to the results file (lzma compressed pickle)
             :param time_range: time range of the recording, in seconds.
@@ -35,7 +37,8 @@ class SortingCommands:
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
             thr = config['preprocessing']['impedance_thr']
-        recording = clean_channels_by_imp(recording, load_intan_impedance(impedance_file), thr)
+        imps = load_intan_impedance(impedance_file)
+        recording = clean_channels_by_imp(recording, imps, thr)
         if time_range[0] < 0:
             time_range[0] = 0
         tot_frame = recording.get_num_frames()
@@ -60,52 +63,97 @@ class SortingCommands:
         for ch, res in results.items():
             res['labels'] = labels[ch]
             res['waveforms'] = waveforms[ch]
+            res['imp'] = imps[ch]
         results['metadata'] = {}
         results['metadata']['fs'] = recording.sampling_frequency
+        results['metadata']['dur'] = recording.get_duration()
         save_results(results, out_path)
 
-    def plot_waveforms(self, sorting_result: str, out_dir='.', format='.png'):
+    def plot_waveforms(self, sorting_result: str, out_dir='.', suffix='.png'):
         """
 
         :param sorting_result:
+        :param out_dir:
+        :param suffix:
         :return:
         """
         results = load_results(sorting_result)
         for ch, res in results.items():
             clusters = {}
             for i, clust in enumerate(res['labels']):
+                if clust == 0:
+                    continue
                 if clust not in clusters:
                     clusters[clust] = []
                 clusters[clust].append(i)
             tot = len(res['waveforms'][0])
             for i, c in clusters.items():
                 data = {
-                    'amp': np.concatenate([res['waveforms'][i] for i in c]),
+                    'amp': np.concatenate([res['waveforms'][j] for j in c]),
                     'time': np.tile(np.linspace(0, tot - 1, tot), len(c)) / results['metadata']['fs'] * 1000,
                 }
-                sns.lineplot(x="time", y="amp", data=data)
-                plt.xlabel('Time (ms)')
-                plt.ylabel('Amplitude (mV)')
-                plt.savefig(Path(out_dir) / f'ch_{ch}_clust_{i}{format}', bbox_inches='tight')
+                plot_waveform(data)
+                plt.savefig(Path(out_dir) / f'ch_{ch}_clust_{i}{suffix}', bbox_inches='tight')
 
-    def plot_quality_metrics(self, sorting_result: str, out_dir='.', format='.png'):
+    def plot_quality_metrics(self, sorting_result: str, out_path: str):
+        """
+
+        :param sorting_result:
+        :param out_path:
+        :return:
+        """
+        results = load_results(sorting_result)
+        snr = []
+        fr = []
+        imp = []
+        peak = []
+        nclust = []
+        for ch, res in results.items():
+            clusters = {}
+            for i, clust in enumerate(res['labels']):
+                if clust == 0:
+                    continue
+                if clust not in clusters:
+                    clusters[clust] = []
+                clusters[clust].append(i)
+            nclust.append(len(clusters))
+            for i, c in clusters.items():
+                waveforms = np.array([res['waveforms'][j] for j in c])
+                signal = waveforms.mean(axis=0).max()
+                noise = waveforms.std()
+                snr.append(signal / noise)
+                fr.append(len(c) / res['metadata']['dur'])
+                imp.append(res['imp'] / 10000)
+                peak.append(signal)
+        plot_quality_metrics(snr, fr, peak, imp, nclust)
+        plt.savefig(out_path, bbox_inches='tight')
+
+    def plot_auto_correlagrams(self, sorting_result: str, bin_time=1, max_lag=50, out_dir='.', suffix='.png'):
+        """
+
+        :param sorting_result:
+        :param bin_time:
+        :param max_lag:
+        :param out_dir:
+        :param suffix:
+        :return:
+        """
         results = load_results(sorting_result)
         for ch, res in results.items():
             clusters = {}
             for i, clust in enumerate(res['labels']):
+                if clust == 0:
+                    continue
                 if clust not in clusters:
                     clusters[clust] = []
                 clusters[clust].append(i)
-            tot = len(res['waveforms'][0])
             for i, c in clusters.items():
-                data = {
-                    'amp': np.concatenate([res['waveforms'][i] for i in c]),
-                    'time': np.tile(np.linspace(0, tot - 1, tot), len(c)) / results['metadata']['fs'] * 1000,
-                }
-                sns.lineplot(x="time", y="amp", data=data)
-                plt.xlabel('Time (ms)')
-                plt.ylabel('Amplitude (mV)')
-                plt.savefig(Path(out_dir) / f'ch_{ch}_clust_{i}{format}', bbox_inches='tight')
+                data = res['spikes'][i]
+                plot_auto_correlagrams(data, res['metadata']['fs'], bin_time, max_lag)
+                plt.savefig(Path(out_dir) / f'ch_{ch}_clust_{i}{suffix}', bbox_inches='tight')
+
+    def plot_phase_locking(self, sorting_result: str, rhd_prefix: str, out_dir='.', suffix='.png'):
+        pass
 
 
 if __name__ == '__main__':

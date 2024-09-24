@@ -2,8 +2,8 @@ import spikeinterface.preprocessing as spre
 from .rm_mechanical_noise import rm_mechanical_noise
 
 
-def clean_channels_by_imp(recording, imp, imp_thr=5e6):
-    return recording.remove_channels([i for i in recording.get_channel_ids() if imp[i] > imp_thr])
+def clean_channels_by_imp(recording, imps, imp_thr=5e6):
+    return recording.remove_channels([i for i in recording.get_channel_ids() if imps[i] > imp_thr])
 
 
 def filter_guosong(recording, pass_band=(250, 6000), mov_window=2000, interval=100):

@@ -1,5 +1,6 @@
 preprocessing:
-  impedance_thr: 5e6
+  impedance_thr: 3000000
+#  omit_channel: ['A-048', 'A-049', 'A-050', 'B-048', 'B-049', 'B-050']
 
 # config.yaml
 spike_detection:

@@ -1,5 +1,6 @@
 import spikeinterface.preprocessing as spre
 from .rm_mechanical_noise import rm_mechanical_noise
+from scipy.signal import iirfilter
 
 
 def clean_channels_by_imp(recording, imps, imp_thr=5e6):
@@ -24,8 +25,10 @@ def filter_detailed(recording):
     """
     r_sort = spre.bandpass_filter(recording, 300, 6000,         # default in spike interface
                               filter_order=4, filter_mode='sos', ftype='butter') # less distortion in time
-    r_detect = spre.bandpass_filter(recording, 300, 3000,       # used by waveclus3
-                              filter_order=4, filter_mode='sos', ftype='ellip', rp=0.1, rs=40)  # better denoising
+    r_detect = spre.bandpass_filter(recording, coeff=iirfilter(
+                                        4, [300, 3000], fs=recording.get_sampling_frequency(),
+                                        analog=False, btype='band', ftype='ellip', rp=0.1, rs=40, output='sos'
+                                    ))      # used by waveclus3, better denoising
 
     # common ref removes collective activities including mechanical noise
     r_sort = spre.common_reference(recording=r_sort, operator="median", reference="global")

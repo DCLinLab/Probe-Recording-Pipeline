@@ -14,16 +14,14 @@ from extra.plot import plot_quality_metrics, plot_waveform, plot_auto_correlagra
 
 
 class SortingCommands:
-
-    def sorting(self, rhd_prefix: str, impedance_file: str, out_path='sorted.pkl.xz', time_range=(0, -1),
-                config_file=Path(__file__).parent / 'config.yaml',
-               max_workers=0):
+    def sorting(self, rhd_folder: str, impedance_file: str, out_path='sorted.pkl.xz', time_range=(0, -1),
+                config_file=Path(__file__).parent / 'config.yaml', max_workers=0):
         """
             A standard pipeline based on waveclus3, difference is:
             1. for spike detection use elliptic filtering, for spike alignment use butterworth filtering
             2. use common reference for removal of unwanted interference
 
-            :param rhd_prefix:
+            :param rhd_folder:
             :param impedance_file:
             :param recording: a raw recording
             :param out_path: output path to the results file (lzma compressed pickle)
@@ -32,11 +30,12 @@ class SortingCommands:
             :return: results as dict indexed by channel, each item containing spikes and their waveforms, cluster labels, etc.
             """
 
-        recording = rhd_load(rhd_prefix)
+        recording = rhd_load(rhd_folder)
         print('preprocess...')
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
             thr = config['preprocessing']['impedance_thr']
+            # imps = load_intan_impedance(impedance_file, to_omit=config['preprocessing']['omit_channel'])
         imps = load_intan_impedance(impedance_file)
         recording = clean_channels_by_imp(recording, imps, thr)
         if time_range[0] < 0:

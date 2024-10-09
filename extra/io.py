@@ -37,5 +37,7 @@ def load_results(path):
 
 def rhd_load(folder, stream_name='RHD2000 amplifier channel'):
     files = sorted(Path(folder).glob('*.rhd'))
-    files = [se.read_intan(i, stream_name=stream_name) for i in files]
+    files = [se.read_intan(i, stream_name=stream_name, use_names_as_ids=True) for i in files]
+    if len(files) == 0:
+        raise FileNotFoundError("No intan RHD2000 recordings in this directory.")
     return concatenate_recordings(files)

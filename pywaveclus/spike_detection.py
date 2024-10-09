@@ -5,6 +5,7 @@ from concurrent.futures import ProcessPoolExecutor
 from spikeinterface import ChannelSliceRecording
 from tqdm import tqdm
 import yaml
+from numba import jit
 
 
 def load_spike_detection_config(config_file):
@@ -13,13 +14,11 @@ def load_spike_detection_config(config_file):
         return config['spike_detection']
 
 
-def process_channel(*args):
-    sub_recording_bp4, sub_recording_bp2, num_segments, segment_duration, total_duration, sr, stdmin, stdmax,\
-        detect, w_pre, w_post, sample_ref, ref = args
+def process_channel(sub_recording_bp4, sub_recording_bp2, num_segments, segment_duration,
+                    total_duration, sr, stdmin, stdmax, detect, w_pre, w_post, sample_ref, ref):
 
     all_spikes = []
-    thresholds = []
-    indexes = []
+    indices = []
 
     for segment_index in range(num_segments):
         start_time = segment_index * segment_duration
@@ -41,23 +40,22 @@ def process_channel(*args):
 
         xaux0 = 0
         index = []
-        for i in range(len(xaux)):
-            if xaux[i] >= xaux0 + ref:
-                iaux = np.argmin(trace_bp2[xaux[i]: xaux[i] + int(sample_ref)-1])
+        for a in xaux:
+            if a >= xaux0 + ref:
+                iaux = np.argmin(trace_bp2[a: a + int(sample_ref)-1])
                 # Check and eliminate artifacts
-                if np.max(np.abs(trace_bp2[xaux[i] - w_pre: xaux[i] + w_post])) < thrmax:
-                    index.append(iaux + xaux[i])
+                if np.abs(trace_bp2[a - w_pre: a + w_post]).max() < thrmax:
+                    index.append(iaux + a)
                     xaux0 = index[-1]
 
         spike_times = (np.array(index) / sr + start_time) * 1000
 
         all_spikes.extend(spike_times)
-        indexes.extend(index)
-        thresholds.append(thr)
-    return {'spikes': np.array(all_spikes), 'thresholds': np.array(thresholds), 'indices': np.array(indexes)}
+        indices.extend(index)
+    return {'spikes_time': np.array(all_spikes), 'spikes_index': np.array(indices)}
 
 
-def detect_spikes(recording, recording_bp2, recording_bp4, config_file, max_workers=None):
+def detect_spikes(recording, recording_bp2, recording_bp4, config_file, max_workers):
     """Detects spikes from a given recording and all channels.
 
     Args:
@@ -72,7 +70,7 @@ def detect_spikes(recording, recording_bp2, recording_bp4, config_file, max_work
 
     Returns:
         results: A dictionary where the keys are the channel ids, and the values are
-                  another dictionary with the keys 'spikes', 'thresholds' and 'indexes'.
+                  another dictionary with the keys 'spikes', 'thresholds' and 'indices'.
     """
     config = load_spike_detection_config(config_file)
     detect = config['detect_method']
@@ -95,13 +93,16 @@ def detect_spikes(recording, recording_bp2, recording_bp4, config_file, max_work
     # Use ThreadPoolExecutor for parallel processing
     if max_workers <= 0:
         max_workers = None
+
     with ProcessPoolExecutor(max_workers) as executor:
         # Submit tasks for each channel to the ThreadPoolExecutor
-        futures = [executor.submit(process_channel,
-                                   ChannelSliceRecording(recording_bp4, [channel_id]),
-                                   ChannelSliceRecording(recording_bp2, [channel_id]),
+        futures = []
+        for channel_id in channel_ids:
+            r1 = ChannelSliceRecording(recording_bp4, [channel_id])
+            r2 = ChannelSliceRecording(recording_bp2, [channel_id])
+            futures.append(executor.submit(process_channel, r1, r2,
                                    num_segments, segment_duration, total_duration, sr, stdmin, stdmax,
-                                   detect, w_pre, w_post, sample_ref, ref) for channel_id in channel_ids]
+                                   detect, w_pre, w_post, sample_ref, ref))
 
         # Collect the results for each channel as they become available
         for ch, fut in tqdm(zip(channel_ids, futures), total=len(futures)):

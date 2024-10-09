@@ -26,8 +26,7 @@ extract_waveform:
   int_factor: 5
 
 clustering:
-  max_spk: 40000
-  permut: true
+  method: 'spc'
   min_temp: 0.
   max_temp: 0.251
   temp_step: 0.01

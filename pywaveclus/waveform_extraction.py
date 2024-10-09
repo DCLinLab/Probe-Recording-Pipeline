@@ -1,6 +1,9 @@
 import yaml
 import numpy as np
+from concurrent.futures import ProcessPoolExecutor
+from spikeinterface import ChannelSliceRecording
 from scipy.interpolate import splrep, splev
+from tqdm import tqdm
 
 
 def load_waveform_extraction_config(config_file):
@@ -17,7 +20,7 @@ def load_waveform_extraction_config(config_file):
         return config['extract_waveform']
 
 
-def extract_waveforms(results, recording_bp2, config_file):
+def extract_waveforms(results, recording_bp2, config_file, max_workers):
     """Extracts waveforms for detected spikes in all channels.
 
     Args:
@@ -37,45 +40,49 @@ def extract_waveforms(results, recording_bp2, config_file):
     int_factor = config.get('int_factor', 5)
 
     spikes_waveforms = {}
-    for channel_id, result in results.items():
-        spikes_waveforms[channel_id] = extract_waveforms_for_channel(result, recording_bp2, channel_id, detect, w_pre, w_post, int_factor)
+    if max_workers <= 0:
+        max_workers = None
+    with ProcessPoolExecutor(max_workers) as executor:
+        # Submit tasks for each channel to the ThreadPoolExecutor
+        futures = []
+        for channel_id, result in results.items():
+            futures.append(executor.submit(extract_waveforms_for_channel, result['spikes_time'],
+                                           result['spikes_index'],
+                           ChannelSliceRecording(recording_bp2, [channel_id]).get_traces(return_scaled=True),
+                           w_pre, w_post, int_factor, detect))
+
+        # Collect the results for each channel as they become available
+        for ch, fut in tqdm(zip(results, futures), total=len(results)):
+            spikes_waveforms[ch] = fut.result()
 
     return spikes_waveforms
 
 
-def extract_waveforms_for_channel(result, recording_bp2, channel_id, detect, w_pre, w_post, int_factor):
-    spikes_times = result['spikes']
-    indexes = result['indices']
-
-    xf = recording_bp2.get_traces(channel_ids=[channel_id], start_frame=0, end_frame=recording_bp2.get_num_frames())
-
-    ls = w_pre + w_post
+def extract_waveforms_for_channel(spikes_times, indices, xf, w_pre, w_post, interp_factor, detect):
     nspk = len(spikes_times)
-
-    indices = np.arange(-w_pre - 2, w_post + 2) + indexes[:, np.newaxis]
-    spikes = np.take(xf, indices, axis=0).reshape(nspk, -1)
-
-    extra = (spikes.shape[1] - ls) // 2
-    s = np.arange(spikes.shape[1])
-    ints = np.arange(0, spikes.shape[1], 1 / int_factor)
+    ls = w_pre + w_post
     spikes_waveforms = np.zeros((nspk, ls))
 
-    if nspk > 0:
-        intspikes = np.empty((nspk, len(ints)))
-        for i in range(nspk):
-            tck = splrep(s, spikes[i, :])
-            intspikes[i, :] = splev(ints, tck)
+    for i in range(nspk):
+        extra = 2
+        spike = xf[np.arange(-w_pre - extra, w_post + extra) + indices[i]]
+
+        s = np.arange(len(spike))
+        interp_x = np.arange(0, len(spike), 1 / interp_factor)
+        tck = splrep(s, spike)
+        interp_y = splev(interp_x, tck)
 
         if detect == 'pos':
-            iaux = intspikes[:, int((w_pre+extra-1)*int_factor):int((w_pre+extra+1)*int_factor)].argmax(axis=1)
+            iaux = interp_y[int((w_pre + extra - 1) * interp_factor):int((w_pre + extra + 1) * interp_factor)].argmax()
         elif detect == 'neg':
-            iaux = intspikes[:, int((w_pre+extra-1)*int_factor):int((w_pre+extra+1)*int_factor)].argmin(axis=1)
+            iaux = interp_y[int((w_pre + extra - 1) * interp_factor):int((w_pre + extra + 1) * interp_factor)].argmin()
         else:
-            iaux = np.abs(intspikes[:, int((w_pre+extra-1)*int_factor):int((w_pre+extra+1)*int_factor)]).argmax(axis=1)
+            iaux = np.abs(
+                interp_y[int((w_pre + extra - 1) * interp_factor):int((w_pre + extra + 1) * interp_factor)]).argmax()
 
-        iaux = iaux + (w_pre+extra-1)*int_factor - 1
+        iaux += (w_pre + extra - 1) * interp_factor - 1
 
-        for i in range(nspk):
-            spikes_waveforms[i, :] = intspikes[i, int(iaux[i]-w_pre*int_factor+int_factor):int(iaux[i]+w_post*int_factor+1):int_factor]
+        spikes_waveforms[i, :] = interp_y[int(iaux - (w_pre - 1) * interp_factor):int(
+            iaux + w_post * interp_factor + 1):interp_factor]
 
     return spikes_waveforms

@@ -7,15 +7,15 @@ from scipy.stats import gaussian_kde
 
 
 def plot_waveform(data):
-    sns.lineplot(x="time", y="amp", data=data)
+    sns.lineplot(x="time", y="amp", data=data, errorbar='sd')
     plt.xlabel('Time (ms)')
-    plt.ylabel('Amplitude (mV)')
+    plt.ylabel('Amplitude (μV)')
     df = pd.DataFrame(data)
     mean_waveform = df.groupby('time')['amp'].mean()
-    max_time = mean_waveform.idxmax()
-    max_amp = mean_waveform.max()
+    max_time = mean_waveform.abs().idxmax()
+    max_amp = mean_waveform[max_time]
     plt.plot(max_time, max_amp, 'ro')  # 'ro' is a red dot marker
-    plt.text(max_time, max_amp, f'Max: {max_amp:.2f} mV', color='red', ha='right')
+    plt.text(max_time, max_amp, f'Max: {max_amp:.2f} μV', color='red', ha='right')
 
 
 def plot_quality_metrics(snr, fr, peak, imp, nclust):

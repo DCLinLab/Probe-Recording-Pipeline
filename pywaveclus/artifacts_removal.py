@@ -49,13 +49,13 @@ def artifacts_removal(results, bundle_name,time_window=0.5):
 
     # Loop over the results dictionary
     for key in results:
-        spikes, indexes = results[key]['spikes'], results[key]['indexes']
+        spikes, indices = results[key]['spikes_time'], results[key]['spikes_index']
         not_common_indices = [i for i, spike in enumerate(spikes) if spike not in common_spikes_times[bundle_name]]
 
         # Add new arrays to the new dictionary
         filtered_results[key] = {
-            'spikes': spikes[not_common_indices],
-            'indexes': indexes[not_common_indices],
+            'spikes_time': spikes[not_common_indices],
+            'spikes_index': indices[not_common_indices],
         }
     return filtered_results, common_spikes_times
 

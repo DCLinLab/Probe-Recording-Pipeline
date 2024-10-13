@@ -4,14 +4,12 @@ from spclustering import SPC
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor
 import random
-from .alc import GRAPHALC
 from pywaveclus.template_match import force_membership
 
 
 def clustering_for_channel(features, config):
     spc = SPC(config['min_temp'], config['max_temp'], config['temp_step'],
               config['sw_cycles'], config['knn'], randomseed=config['rand_seed'])
-    g = GRAPHALC()
     random.seed(config['rand_seed'])
     if len(features) > config['max_spk']:
         ipermut = random.sample(range(len(features)), config['max_spk'])

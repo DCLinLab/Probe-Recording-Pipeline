@@ -10,10 +10,13 @@ spike_detection:
   std_max: 50
   w_pre: 20
   w_post: 44
-  min_ref_per: 1.5
+  min_ref_per: 3
+  merge_radius: 20
 
 feature_extraction:
-  method: 'pca'   # one of wav, pca
+  method: 'spk'   # one of wav, pca, spk
+  center: 20
+  sigma: 5
   scales: 4
   ls: 64
   max_inputs: 0.75
@@ -26,11 +29,17 @@ extract_waveform:
   int_factor: 5
 
 clustering:
+  template_match:
+    type: 'center'
+    sdnum: 1
+    k: 10
+    k_min: 10
+  c_ov: 0.7
+  elbow_min: 0.4
   max_spk: 40000
-  permut: true
   min_temp: 0.
   max_temp: 0.251
-  temp_step: 0.01
+  temp_step: 0.1
   sw_cycles: 100
   knn: 11
   min_clus: 60

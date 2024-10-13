@@ -1,6 +1,7 @@
 from main import SortingCommands
 from pathlib import Path
 from traceback import print_exc
+import shutil
 
 
 if __name__ == '__main__':
@@ -9,14 +10,14 @@ if __name__ == '__main__':
     sessions = sorted(raw_dir.rglob('imp*.csv'))
     for s in sessions:
         new_folder = res_dir / s.parent.relative_to(raw_dir)
-        new_folder.mkdir(exist_ok=True, parents=True)
-        out =  new_folder / 'spikes.pkl.xz'
+        out =  new_folder / 'spikes.pkl.tgz'
         if out.exists():
             print(f'Skip {s.parent}')
             continue
         print(f'Do {s.parent}')
         try:
-            SortingCommands().sorting(s.parent, s, out, time_range=(3, 63), max_workers=20,
-                                      config_file=Path(__file__).parent / 'config.yaml', cache=r'G:\cache')
+            new_folder.mkdir(exist_ok=True, parents=True)
+            SortingCommands().sorting(s.parent, s, out, time_range=(3, 63))
         except:
+            shutil.rmtree(new_folder, ignore_errors=True)
             print_exc()

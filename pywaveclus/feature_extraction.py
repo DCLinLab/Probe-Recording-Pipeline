@@ -4,17 +4,11 @@ import pywt
 from sklearn.decomposition import PCA
 from statsmodels.stats.diagnostic import lilliefors
 from tqdm import tqdm
-import yaml
-
-
-def load_feature_extraction_config(config_file):
-    with open(config_file, 'r') as config_file:
-        config = yaml.safe_load(config_file)
-        return config['feature_extraction']
+from functools import partial
 
 
 def pca_feature_extraction_for_channel(waveforms):
-    return PCA().fit_transform(waveforms)[:, 1:11 ]  # Fit PCA and transform the data
+    return PCA().fit_transform(waveforms)[:, :10]  # Fit PCA and transform the data
 
 
 def wavelet_feature_extraction_for_channel(waveforms, scales, min_inputs, max_inputs):
@@ -73,15 +67,24 @@ def wavelet_feature_extraction_for_channel(waveforms, scales, min_inputs, max_in
     return inspk
 
 
-def feature_extraction(waveforms, config_file):
-    config = load_feature_extraction_config(config_file)
+def spk_feature_extraction_for_channel(waveforms, sigma, center):
+    x = np.arange(waveforms.shape[1])
+    g = np.exp(-.5 * ((x - center) / sigma) ** 2)
+    return waveforms * g
+
+
+def feature_extraction(waveforms, **config):
     features = {}
-    if config['method'] == 'wav':       # wavelet tends to give to detailed results
-        for channel, spike_waveforms in tqdm(waveforms.items()):
+    loader = partial(tqdm, total=len(waveforms), unit='channel', desc='Feature Extraction')
+    if config['method'] == 'wav':       # wavelet tends to give more detailed results
+        for channel, spike_waveforms in loader(waveforms.items()):
             features[channel] = wavelet_feature_extraction_for_channel(
                 spike_waveforms, config['scales'], config['min_inputs'], config['max_inputs'])
-    else:
-        for channel, spike_waveforms in tqdm(waveforms.items()):
+    elif config['method'] == 'pca':
+        for channel, spike_waveforms in loader(waveforms.items()):
             features[channel] = pca_feature_extraction_for_channel(spike_waveforms)
+    else:
+        for channel, spike_waveforms in loader(waveforms.items()):
+            features[channel] = spk_feature_extraction_for_channel(spike_waveforms, config['sigma'], config['center'])
     return features
 

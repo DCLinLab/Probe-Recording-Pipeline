@@ -1,26 +1,11 @@
 import yaml
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
-from spikeinterface import ChannelSliceRecording
 from scipy.interpolate import splrep, splev
 from tqdm import tqdm
 
 
-def load_waveform_extraction_config(config_file):
-    """Load waveform extraction configuration from a YAML file.
-
-    Args:
-        config_file (str): Path to the YAML configuration file. Default is 'config.yaml'.
-
-    Returns:
-        dict: A dictionary containing the waveform extraction configuration parameters.
-    """
-    with open(config_file, 'r') as config_file:
-        config = yaml.safe_load(config_file)
-        return config['extract_waveform']
-
-
-def extract_waveforms(results, recording_bp2, config_file, max_workers):
+def extract_waveforms(results, recording_bp2, max_workers, **config):
     """Extracts waveforms for detected spikes in all channels.
 
     Args:
@@ -33,26 +18,26 @@ def extract_waveforms(results, recording_bp2, config_file, max_workers):
         dict: A dictionary where keys are the channel ids, and values are the extracted waveforms for detected spikes in each channel.
     """
 
-    config = load_waveform_extraction_config(config_file)
     detect = config.get('detect_method', 'neg')
     w_pre = config.get('w_pre', 20)
     w_post = config.get('w_post', 44)
     int_factor = config.get('int_factor', 5)
 
     spikes_waveforms = {}
-    if max_workers <= 0:
-        max_workers = None
     with ProcessPoolExecutor(max_workers) as executor:
         # Submit tasks for each channel to the ThreadPoolExecutor
         futures = []
         for channel_id, result in results.items():
-            futures.append(executor.submit(extract_waveforms_for_channel, result['spikes_time'],
-                                           result['spikes_index'],
-                           ChannelSliceRecording(recording_bp2, [channel_id]).get_traces(return_scaled=True),
-                           w_pre, w_post, int_factor, detect))
+            futures.append(
+                executor.submit(extract_waveforms_for_channel,
+                                result['spikes_time'], result['spikes_index'],
+                                recording_bp2.select_channels([channel_id]).get_traces(return_scaled=True),
+                                w_pre, w_post, int_factor, detect)
+            )
 
         # Collect the results for each channel as they become available
-        for ch, fut in tqdm(zip(results, futures), total=len(results)):
+        for ch, fut in tqdm(zip(results, futures), 'Waveform Extraction',
+                            len(results), unit='channel'):
             spikes_waveforms[ch] = fut.result()
 
     return spikes_waveforms

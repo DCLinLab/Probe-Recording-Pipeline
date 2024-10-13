@@ -1,37 +1,30 @@
 import unittest
 from main import SortingCommands
 from pathlib import Path
-from extra.io import load_results
-import numpy as np
-from extra.plot import *
-tst_folder = Path(r'D:\Yongzhi_Sun\03_Processed_Data\waveclus_240103\curved\20240330\w15\data')
-# tst_folder = Path(r'C:\Users\LinLab_Workstation3\Desktop\test')
+import shutil
 
 
 class MyTestCase(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # self.tst_folder = Path(r'D:\Yongzhi_Sun\03_Processed_Data\waveclus_240103\curved\20240330\w15\data')
+        self.tst_folder = Path(r'C:\Users\LinLab_Workstation3\Desktop\test')
+        # self.tst_folder = Path(r'C:\Users\LinLab_Workstation3\Desktop\test2')
+        self.imp = r'D:\Yongzhi_Sun\03_Processed_Data\waveclus_240103\curved\20240330\imp\imp-w15.csv'
+        # self.imp = r'D:\Yongzhi_Sun\01_Raw_Data\Yongzhi_Sun\intan\curved_120\20240911_m2\w4\imp-w4.csv'
+        self.cmd = SortingCommands()
 
     def test_sorting(self):
-        imp = r'D:\Yongzhi_Sun\03_Processed_Data\waveclus_240103\curved\20240330\imp\imp-w15.csv'
-        SortingCommands().sorting(
-            tst_folder, imp, tst_folder / 'out.pkl.xz', time_range=(3, 63)
+        self.cmd.sorting(
+            self.tst_folder, self.imp, self.tst_folder / 'out.pkl.tgz', time_range=(3, 63)
         )
 
     def test_plot(self):
-        a = load_results(tst_folder / r'out.pkl.xz')
-        clusters = {}
-        res = a['A-001']
-        for i, clust in enumerate(res['labels']):
-            if clust not in clusters:
-                clusters[clust] = []
-            clusters[clust].append(i)
-        tot = len(res['waveforms'][0])
-        for i, c in clusters.items():
-            data = {
-                'amp': np.concatenate([res['waveforms'][j] for j in c]),
-                'time': np.tile(np.linspace(0, tot - 1, tot), len(c)) / 20000 * 1000,
-            }
-            plot_waveform(data)
-        plt.show()
+        # shutil.rmtree(self.tst_folder / 'waveforms', ignore_errors=True)
+        # self.cmd.plot_waveforms(self.tst_folder / 'out.pkl.tgz', self.tst_folder / 'waveforms')
+        # self.cmd.plot_quality_metrics(self.tst_folder / 'out.pkl.tgz', self.tst_folder / 'quality_metrics.png')
+        shutil.rmtree(self.tst_folder / 'auto_correlagrams', ignore_errors=True)
+        self.cmd.plot_auto_correlagrams(self.tst_folder / 'out.pkl.tgz', self.tst_folder / 'auto_correlagrams')
 
 if __name__ == '__main__':
     unittest.main()

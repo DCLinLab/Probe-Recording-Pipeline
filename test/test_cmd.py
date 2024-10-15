@@ -1,5 +1,5 @@
 import unittest
-from main import SortingCommands
+from sorter import WaveclusInterface
 from pathlib import Path
 import shutil
 
@@ -8,16 +8,14 @@ class MyTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # self.tst_folder = Path(r'D:\Yongzhi_Sun\03_Processed_Data\waveclus_240103\curved\20240330\w15\data')
-        self.tst_folder = Path(r'C:\Users\LinLab_Workstation3\Desktop\test')
-        # self.tst_folder = Path(r'C:\Users\LinLab_Workstation3\Desktop\test2')
-        self.imp = r'D:\Yongzhi_Sun\03_Processed_Data\waveclus_240103\curved\20240330\imp\imp-w15.csv'
-        # self.imp = r'D:\Yongzhi_Sun\01_Raw_Data\Yongzhi_Sun\intan\curved_120\20240911_m2\w4\imp-w4.csv'
-        self.cmd = SortingCommands()
+        # self.tst_folder = Path(r'C:\Users\LinLab_Workstation3\Desktop\test')
+        self.tst_folder = Path(r'C:\Users\LinLab_Workstation3\Desktop\test2')
+        # self.imp = r'D:\Yongzhi_Sun\03_Processed_Data\waveclus_240103\curved\20240330\imp\imp-w15.csv'
+        self.imp = r'D:\Yongzhi_Sun\01_Raw_Data\Yongzhi_Sun\intan\curved_120\20240911_m2\w4\imp-w4.csv'
+        self.cmd = WaveclusInterface()
 
     def test_sorting(self):
-        self.cmd.sorting(
-            self.tst_folder, self.imp, self.tst_folder / 'out.pkl.tgz', time_range=(3, 63)
-        )
+        self.cmd.sort(self.tst_folder, self.tst_folder / 'out.pkl.tgz', self.imp, time_range=(0, 10))
 
     def test_plot(self):
         # shutil.rmtree(self.tst_folder / 'waveforms', ignore_errors=True)

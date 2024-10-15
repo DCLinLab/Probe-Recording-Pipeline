@@ -25,7 +25,7 @@ def plot_quality_metrics(snr, amp, fr, imp, nchan):
     # snr = np.log10(snr)
     # amp = np.log10(amp)
     g = sns.JointGrid(x=amp, y=snr)
-    scatter = g.ax_joint.scatter(amp, snr, c=fr, s=imp, cmap='viridis', alpha=.7)
+    scatter = g.ax_joint.scatter(amp, snr, c=fr, s=imp, cmap='viridis', alpha=.8)
     ax = g.ax_joint
     ax.set_xscale('log', base=2)
     ax.set_yscale('log', base=2)
@@ -66,7 +66,7 @@ def plot_quality_metrics(snr, amp, fr, imp, nchan):
                        loc='upper left',  # location of the colorbar
                        borderpad=1)
     plt.colorbar(scatter, label='Firing Rate', cax=axins, orientation='horizontal',
-                 ticks=np.linspace(0, max(fr), 5).round().clip(0, max(fr)))
+                 ticks=np.linspace(0, max(fr), 5).clip(0, max(fr)).astype(int))
 
     # Custom legend for point sizes
     sizes = [10, 50, 100]
@@ -86,18 +86,25 @@ def plot_quality_metrics(snr, amp, fr, imp, nchan):
                     ha='right', va='top', transform=g.ax_joint.transAxes)
 
 
-def plot_auto_correlagrams(spikes, fs, bin_time=1, max_lag=50):
-    trace = np.zeros(round(max(spikes)))
-    trace[np.nonzero(np.round(spikes))] = 1
-    # bin_factor = int(bin_time * fs / 1000)
-    plt.acorr(trace)
+def plot_auto_correlagrams(times, fs, bin_time=1, max_lag=50):
+    indices = (np.array(times) * (fs / 1000)).astype(int)
+    trace = np.zeros(max(indices) + 1)
+    trace[indices] = 1
+    bin_factor = int(bin_time * fs / 1000)
+    coeff = correlate(trace, trace, mode='full', method='auto')
+    nbin = len(coeff) // bin_factor
+    coeff = np.add.reduceat(coeff[:nbin*bin_factor], np.arange(0, nbin*bin_factor, bin_factor))
+    zero = len(trace) // bin_factor
+    p1, p2 = int(zero - max_lag / bin_time), int(zero + max_lag / bin_time) + 1
+    coeff = coeff[p1:p2]
+    sns.barplot(x=range(len(coeff)), y=coeff)
+    plt.ylim(0, np.median(coeff) * 2)
     plt.xlabel('Lag (ms)')
     plt.ylabel('Relevance (a.u.)')
-    # plt.ylim(0, ymax)
-    # plt.xticks(ticks=np.linspace(0, max_lag / bin_time * 2, 5),
-    #            labels=np.linspace(-max_lag, max_lag, 5))
+    plt.xticks(np.linspace(0, len(coeff), 5), np.linspace(-max_lag, max_lag, 5))
     plt.tight_layout()
 
 
 def plot_phase_locking():
     pass
+

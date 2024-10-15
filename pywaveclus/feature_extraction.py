@@ -4,7 +4,6 @@ import pywt
 from sklearn.decomposition import PCA
 from statsmodels.stats.diagnostic import lilliefors
 from tqdm import tqdm
-from functools import partial
 
 
 def pca_feature_extraction_for_channel(waveforms):
@@ -68,23 +67,31 @@ def wavelet_feature_extraction_for_channel(waveforms, scales, min_inputs, max_in
 
 
 def spk_feature_extraction_for_channel(waveforms, sigma, center):
+    """
+    Gaussian weight to focus on spike.
+
+    :param waveforms:
+    :param sigma:
+    :param center:
+    :return:
+    """
     x = np.arange(waveforms.shape[1])
     g = np.exp(-.5 * ((x - center) / sigma) ** 2)
     return waveforms * g
 
 
-def feature_extraction(waveforms, **config):
+def feature_extraction(detections, **config):
+    method = config.get('method', 'spk')
     features = {}
-    loader = partial(tqdm, total=len(waveforms), unit='channel', desc='Feature Extraction')
-    if config['method'] == 'wav':       # wavelet tends to give more detailed results
-        for channel, spike_waveforms in loader(waveforms.items()):
-            features[channel] = wavelet_feature_extraction_for_channel(
-                spike_waveforms, config['scales'], config['min_inputs'], config['max_inputs'])
-    elif config['method'] == 'pca':
-        for channel, spike_waveforms in loader(waveforms.items()):
-            features[channel] = pca_feature_extraction_for_channel(spike_waveforms)
-    else:
-        for channel, spike_waveforms in loader(waveforms.items()):
-            features[channel] = spk_feature_extraction_for_channel(spike_waveforms, config['sigma'], config['center'])
+    for ch, res in tqdm(detections.items(), 'Feature Extraction', unit='channel'):
+        if method == 'wav':       # wavelet tends to give more detailed results
+            features[ch] = wavelet_feature_extraction_for_channel(
+                res['waveforms'], config['scales'], config['min_inputs'], config['max_inputs'])
+        elif method == 'pca':
+            features[ch] = pca_feature_extraction_for_channel(res['waveforms'])
+        elif method == 'spk':
+            features[ch] = spk_feature_extraction_for_channel(res['waveforms'], config['sigma'], config['center'])
+        else:
+            raise ValueError(f'Unsupported feature extraction method: {method}')
     return features
 

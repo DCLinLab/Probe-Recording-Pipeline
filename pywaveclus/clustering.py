@@ -33,13 +33,12 @@ def clustering_for_channel(features, config):
 def clustering(features, max_workers, **config):
     labels = {}
     with ProcessPoolExecutor(max_workers) as executor:
-        futures = []
-        for channel_id, feature in features.items():
-            if len(feature) == 0:
-                labels[channel_id] = []
+        futures, results = [], []
+        for ch, f in features.items():
+            if len(f) == 0:
+                labels[ch] = []
             else:
-                futures.append(executor.submit(clustering_for_channel, feature, config))
-        for ch, fut in tqdm(zip(features, futures), 'Clustering', len(features), unit='channel'):
-            labels[ch] = fut.result()
-
-    return labels
+                futures.append(executor.submit(clustering_for_channel, f, config))
+        for fut in tqdm(futures, 'Clustering', unit='channel'):
+            results.append(fut.result())
+    return dict(zip(features.keys(), results))

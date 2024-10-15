@@ -44,11 +44,11 @@ def decompress_chunk(gz):
         return pickle.loads(f.read())
 
 
-def save_results(results, path, max_workers=1):
+def save_results(results, path, max_workers=None):
     channels = list(results.keys())
     values = list(results.values())
     gz_chunks = []
-    loader = partial(tqdm, desc='GZIP compressing results', total=len(values), unit='channel')
+    loader = partial(tqdm, desc='GZIP compressing results', unit='channel')
     if max_workers == 1:
         for v in loader(values):
             gz_chunks.append(compress_chunk(v))
@@ -66,12 +66,12 @@ def save_results(results, path, max_workers=1):
             t.addfile(tar_info, io.BytesIO(gz))
 
 
-def load_results(path, max_workers=1):
-    data = {}
+def load_results(path, max_workers=None):
     with tarfile.open(path, 'r:gz') as t:
         members = t.getmembers()
-        loader = partial(tqdm, desc='GZIP decompressing results', total=len(members), unit='channel')
+        loader = partial(tqdm, desc='GZIP decompressing results', unit='channel')
         if max_workers == 1:
+            data = {}
             for m in loader(members):
                 gz = t.extractfile(m).read()
                 channel = m.name.removesuffix('.pkl.gz')
@@ -83,12 +83,12 @@ def load_results(path, max_workers=1):
                 to_decompress.append(t.extractfile(m).read())
                 channels.append(m.name.removesuffix('.pkl.gz'))
             with ProcessPoolExecutor(max_workers) as executor:
-                futures = []
+                futures, results = [], []
                 for i in to_decompress:
                     futures.append(executor.submit(decompress_chunk, i))
-                for k, v in loader(zip(channels, futures)):
-                    data[k] = v.result()
-
+                for fut in loader(futures):
+                    results.append(fut.result())
+                data = dict(zip(channels, results))
     return data
 
 
@@ -106,6 +106,7 @@ def load_results_old(path):
 def rhd_load(folder, stream_name='RHD2000 amplifier channel'):
     files = sorted(Path(folder).glob('*.rhd'))
     assert len(files) > 0, "No intan RHD2000 recording found in this directory."
-    files = [se.read_intan(i, stream_name=stream_name, use_names_as_ids=True) for i in tqdm(files, 'Loading RHD2000 files')]
+    files = [se.read_intan(i, stream_name=stream_name, use_names_as_ids=True)
+             for i in tqdm(files, 'Loading RHD2000 files')]
     return concatenate_recordings(files)
 

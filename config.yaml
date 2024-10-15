@@ -10,8 +10,7 @@ spike_detection:
   std_max: 50
   w_pre: 20
   w_post: 44
-  min_ref_per: 3
-  merge_radius: 20
+  min_ref_per: 1.5
 
 feature_extraction:
   method: 'spk'   # one of wav, pca, spk
@@ -21,11 +20,6 @@ feature_extraction:
   ls: 64
   max_inputs: 0.75
   min_inputs: 10
-
-extract_waveform:
-  detect_method: 'both'
-  w_pre: 20
-  w_post: 44
   int_factor: 5
 
 clustering:
@@ -35,11 +29,11 @@ clustering:
     k: 10
     k_min: 10
   c_ov: 0.7
-  elbow_min: 0.4
+  elbow_min: 0.8
   max_spk: 40000
   min_temp: 0.
   max_temp: 0.251
-  temp_step: 0.1
+  temp_step: 0.01
   sw_cycles: 100
   knn: 11
   min_clus: 60

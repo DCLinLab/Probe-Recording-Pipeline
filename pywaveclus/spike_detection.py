@@ -3,14 +3,19 @@ import math
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
+from scipy.interpolate import splrep, splev
 import spikeinterface as si
 
 
-def process_channel(sub_recording_bp4, sub_recording_bp2, num_segments, segment_duration,
-                    total_duration, sr, stdmin, stdmax, detect, w_pre, w_post, sample_ref, ref, merge_radius):
-
-    all_spikes = []
-    indices = []
+def process_channel(r_detect, r_sort, seg_dur, stdmin, stdmax, min_ref_per, detect, w_pre, w_post, fct):
+    tot_dur = r_detect.get_duration()
+    nseg = math.ceil(tot_dur / seg_dur)
+    fs = r_detect.get_sampling_frequency()
+    ref = int(min_ref_per * fs / 1000)
+    sample_ref = np.floor(ref / 2)
+    gain = r_sort.get_channel_gains()[0]
+    offset = r_sort.get_channel_offsets()[0]
+    ls = w_pre + w_post
 
     if detect == 'neg':
         func = lambda x: -x
@@ -21,32 +26,18 @@ def process_channel(sub_recording_bp4, sub_recording_bp2, num_segments, segment_
     else:
         raise ValueError(f"Invalid value {detect} for argument 'detect'. Must be 'neg', 'pos', or 'both'.")
 
-    for segment_index in range(num_segments):
-        start_time = segment_index * segment_duration
-        end_time = min((segment_index + 1) * segment_duration, total_duration)
+    times, waveforms = [], []
+    # process by segments for memory efficiency
+    for seg_ind in range(nseg):
+        start_time = seg_ind * seg_dur
+        end_time = min((seg_ind + 1) * seg_dur, tot_dur)
 
-        trace_bp4 = sub_recording_bp4.get_traces(start_frame=int(start_time * sr), end_frame=int(end_time * sr))
-        trace_bp2 = sub_recording_bp2.get_traces(start_frame=int(start_time * sr), end_frame=int(end_time * sr))
+        trace_bp4 = r_detect.get_traces(start_frame=int(start_time * fs), end_frame=int(end_time * fs))
+        trace_bp2 = r_sort.get_traces(start_frame=int(start_time * fs), end_frame=int(end_time * fs))
 
-        thr = stdmin * np.median(np.abs(trace_bp4)) / 0.6745
-        thrmax = stdmax * np.median(np.abs(trace_bp2)) / 0.6745
+        thr = stdmin * np.median(np.abs(trace_bp4)) / 0.6745        # lower limit
+        thrmax = stdmax * np.median(np.abs(trace_bp2)) / 0.6745     # upper limit
         xaux = np.where(func(trace_bp4[w_pre + 2: -w_post - 2 - int(sample_ref)]) > thr)[0] + w_pre + 1
-
-        # xaux2 = xaux.copy()
-        # for i in range(len(xaux)):
-        #     j = 1
-        #     mid = xaux[i]
-        #     while i - j >= 0 and mid - xaux[i - j] <= merge_radius:
-        #         if func(trace_bp4[xaux[i - j]]) > func(trace_bp4[xaux[i]]):
-        #             xaux2[i] = xaux[i - j]
-        #         j += 1
-        #     j = 1
-        #     while i + j < len(xaux) and xaux[i + j] - mid <= merge_radius:
-        #         if func(trace_bp4[xaux[i + j]]) > func(trace_bp4[xaux[i]]):
-        #             xaux2[i] = xaux[i + j]
-        #         j += 1
-        #
-        # xaux = np.unique(xaux2)
 
         xaux0 = 0
         index = []
@@ -61,13 +52,20 @@ def process_channel(sub_recording_bp4, sub_recording_bp2, num_segments, segment_
                     continue
                 index.append(iaux + a)
                 xaux0 = index[-1]
+        times.extend((np.array(index) / fs + start_time) * 1000)
 
-        spike_times = (np.array(index) / sr + start_time) * 1000
+        # waveform extraction
+        for i in index:
+            ind = np.clip(i + np.arange(-w_pre, w_post), 0, len(trace_bp2) - 1)
+            tck = splrep(np.arange(ls), trace_bp2[ind] * gain + offset)
+            interp = splev(np.arange(0, ls, 1 / fct), tck)
+            p1, p2 = int((w_pre - 1) * fct), int((w_pre + 1) * fct)
+            iaux = int(func(interp[p1:p2]).argmax() - fct + 1)
+            ind = np.clip([iaux + int(i * fct) for i in range(ls)], 0, len(interp) - 1)
+            waveforms.append(interp[ind])
 
-        all_spikes.extend(spike_times)
-        indices.extend(index)
-    return {'spikes_time': np.array(all_spikes), 'spikes_index': np.array(indices),
-            'noise': si.get_noise_levels(sub_recording_bp2, return_scaled=True)[0]}
+    return {'times': np.array(times) , 'waveforms': np.vstack(waveforms),
+            'fs': fs, 'dur': tot_dur, 'noise': si.get_noise_levels(r_sort, return_scaled=True)[0]}
 
 
 def detect_spikes(recording, r_sort, r_detect, max_workers, **config):
@@ -87,32 +85,26 @@ def detect_spikes(recording, r_sort, r_detect, max_workers, **config):
         results: A dictionary where the keys are the channel ids, and the values are
                   another dictionary with the keys 'spikes', 'thresholds' and 'indices'.
     """
-    detect = config['detect_method']
-    segment_duration = config['segment_duration'] * 60
-    min_ref_per = config['min_ref_per']
-    
-    total_duration = r_detect.get_num_frames() / r_detect.get_sampling_frequency()
-    num_segments = math.ceil(total_duration / segment_duration)
-
-    sr = r_detect.get_sampling_frequency()
-    ref = int(min_ref_per * sr / 1000)
-    sample_ref = np.floor(ref/2)
-    results = {}
+    detect = config.get('detect_method', 'both')
+    seg_dur = config.get('segment_duration', 5) * 60
+    min_ref_per = config.get('min_ref_per', 1.5)
+    w_pre = config.get('w_pre', 20)
+    w_post = config.get('w_post', 44)
+    std_min = config.get('std_min', 5)
+    std_max = config.get('std_max', 50)
+    int_factor = config.get('int_factor', 5)
 
     with ProcessPoolExecutor(max_workers) as executor:
         # Submit tasks for each channel to the ThreadPoolExecutor
-        futures = []
-        for channel_id in recording.channel_ids:
+        futures, results = [], []
+        for ch in recording.channel_ids:
             futures.append(
                 executor.submit(process_channel,
-                                r_detect.select_channels([channel_id]), r_sort.select_channels([channel_id]),
-                                num_segments, segment_duration, total_duration, sr, config['std_min'], config['std_max'],
-                                detect, config['w_pre'], config['w_post'], sample_ref, ref, config['merge_radius'])
+                                r_detect.select_channels([ch]), r_sort.select_channels([ch]),
+                                seg_dur, std_min, std_max, min_ref_per, detect, w_pre, w_post, int_factor)
             )
-
         # Collect the results for each channel as they become available
-        for ch, fut in tqdm(zip(recording.channel_ids, futures), 'Spike Detection',
-                            len(futures), unit='channel'):
-            results[ch] = fut.result()
+        for fut in tqdm(futures, 'Spike Detection', unit='channel'):
+            results.append(fut.result())
 
-    return results
+    return dict(zip(recording.channel_ids, results))
